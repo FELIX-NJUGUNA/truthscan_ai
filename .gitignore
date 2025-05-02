@@ -1,0 +1,16 @@
+# Byte-compiled / cache
+__pycache__/
+
+# Virtual environment
+tsvenv2/
+
+# Database and model files
+truthscan.db
+truthscan_model.keras
+
+# Instance files (if they contain secrets)
+instance/
+
+# OS or editor files
+.DS_Store
+*.swp
