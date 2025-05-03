@@ -47,6 +47,7 @@ with app.app_context():
     db.create_all()
 
 # NLTK resources
+nltk.data.path.append(os.path.join(os.getcwd(), 'nltk_data'))
 nltk.download('punkt', quiet=True)
 nltk.download('averaged_perceptron_tagger', quiet=True)
 
