@@ -189,6 +189,12 @@ def login():
         return jsonify({'token': token, 'username': user.username}), 200
     return jsonify({'error': 'Invalid credentials'}), 401
 
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+
 @app.route('/predict', methods=['POST'])
 @jwt_required
 def predict():
