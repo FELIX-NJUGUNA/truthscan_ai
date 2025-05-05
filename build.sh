@@ -1,4 +1,7 @@
 #!/bin/bash
 
-# Download NLTK resources into a local directory
-python -m nltk.downloader -d nltk_data punkt averaged_perceptron_tagger
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Download NLTK resources to local folder
+python -m nltk.downloader -d ./nltk_data punkt averaged_perceptron_tagger
