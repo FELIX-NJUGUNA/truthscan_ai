@@ -4,7 +4,7 @@ __pycache__/
 # Virtual environment
 tsvenv2/
 
-
+app.log
 
 # Instance files (if they contain secrets)
 instance/
