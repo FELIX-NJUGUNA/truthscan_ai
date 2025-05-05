@@ -82,12 +82,16 @@ def save_prediction(user_id, input_type, input_text, prediction, confidence):
         raise
 
 # --- Load NLTK ---
+nltk_data_path = os.path.join(os.path.dirname(__file__), 'nltk_data')
+nltk.data.path.append(nltk_data_path)
+
 try:
-    nltk.download('punkt', quiet=True)
-    nltk.download('averaged_perceptron_tagger', quiet=True)
+    nltk.download('punkt', download_dir=nltk_data_path, quiet=True)
+    nltk.download('averaged_perceptron_tagger', download_dir=nltk_data_path, quiet=True)
     logger.info("NLTK data downloaded successfully")
 except Exception as e:
     logger.error(f"Failed to download NLTK data: {str(e)}")
+
 
 # --- Model ---
 MODEL_PATH = os.path.join(os.path.dirname(__file__), 'truthscan_model.keras')
