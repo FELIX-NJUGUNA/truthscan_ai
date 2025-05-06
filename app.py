@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, redirect, request, jsonify, render_template, url_for
 from flask_bcrypt import Bcrypt
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
@@ -31,12 +31,17 @@ app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB max upload size (reduc
 bcrypt = Bcrypt(app)
 db = SQLAlchemy(app)
 
-# --- Logging ---
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-handler = RotatingFileHandler('app.log', maxBytes=1000000, backupCount=5)
-handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
-logger.addHandler(handler)
+# Configure logging
+log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, 'app.log')
+handler = RotatingFileHandler(log_file, maxBytes=100000, backupCount=3)
+handler.setLevel(logging.INFO)
+formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+app.logger.addHandler(handler)
+logger = app.logger
 
 # --- JWT Config ---
 JWT_SECRET = app.config['SECRET_KEY']
@@ -82,14 +87,17 @@ def save_prediction(user_id, input_type, input_text, prediction, confidence):
         logger.error(f"Failed to save prediction: {str(e)}", exc_info=True)
         raise
 
-# --- Load NLTK ---
-nltk_data_path = os.path.join(os.path.dirname(__file__), 'nltk_data')
+# Configure NLTK data path
+nltk_data_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'nltk_data')
+os.makedirs(nltk_data_path, exist_ok=True)
+os.environ['NLTK_DATA'] = nltk_data_path
 nltk.data.path.append(nltk_data_path)
 
+# Download necessary NLTK data
 try:
-    nltk.download('punkt', download_dir=nltk_data_path, quiet=True)
-    nltk.download('averaged_perceptron_tagger', download_dir=nltk_data_path, quiet=True)
-    logger.info("NLTK data downloaded successfully")
+    nltk.download('punkt', download_dir=nltk_data_path)
+    nltk.download('averaged_perceptron_tagger', download_dir=nltk_data_path)
+    logger.info("NLTK data downloaded successfully.")
 except Exception as e:
     logger.error(f"Failed to download NLTK data: {str(e)}")
 
@@ -248,7 +256,17 @@ def login():
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    try:
+        return render_template('index.html')
+    except Exception as e:
+        logger.error(f"Failed to render index.html: {str(e)}")
+        return jsonify({'error': 'Template rendering failed'}), 500
+
+@app.route('/logout')
+def logout():
+    # Implement logout logic if needed (e.g., session.pop('user'))
+    return redirect(url_for('login'))  # Redirect to login page or homepage
+
 
 @app.route('/predict', methods=['POST'])
 @jwt_required
