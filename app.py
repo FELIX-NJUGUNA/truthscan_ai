@@ -5,6 +5,7 @@ from flask_cors import CORS
 import jwt
 import datetime
 import os
+os.environ['NLTK_DATA'] = os.path.join(os.path.dirname(__file__), 'nltk_data')
 import re
 import tempfile
 import logging

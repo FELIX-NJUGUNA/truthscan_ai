@@ -10,4 +10,4 @@ pip install -r requirements.txt
 mkdir -p nltk_data
 
 # Download NLTK resources
-python -m nltk.downloader -d ./nltk_data punkt averaged_perceptron_tagger
+python -m nltk.downloader punkt averaged_perceptron_tagger -d ./nltk_data
