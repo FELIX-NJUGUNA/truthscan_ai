@@ -17,9 +17,20 @@ from nltk import pos_tag
 import PyPDF2
 from logging.handlers import RotatingFileHandler
 
+
+
 # --- Initialization ---
 app = Flask(__name__)
 CORS(app)
+
+# Configure NLTK data path
+nltk_data_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'nltk_data')
+os.makedirs(nltk_data_path, exist_ok=True)
+os.environ['NLTK_DATA'] = nltk_data_path
+nltk.data.path.append(nltk_data_path)
+
+
+
 
 # --- Configuration ---
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
@@ -42,6 +53,19 @@ formatter = logging.Formatter(
 handler.setFormatter(formatter)
 app.logger.addHandler(handler)
 logger = app.logger
+
+
+
+# Download necessary NLTK data
+try:
+    nltk.download('punkt')
+    nltk.download('punkt', download_dir=nltk_data_path)
+    nltk.download('averaged_perceptron_tagger', download_dir=nltk_data_path)
+    logger.info("NLTK data downloaded successfully.")
+except Exception as e:
+    logger.error(f"Failed to download NLTK data: {str(e)}")
+
+
 
 # --- JWT Config ---
 JWT_SECRET = app.config['SECRET_KEY']
@@ -87,19 +111,7 @@ def save_prediction(user_id, input_type, input_text, prediction, confidence):
         logger.error(f"Failed to save prediction: {str(e)}", exc_info=True)
         raise
 
-# Configure NLTK data path
-nltk_data_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'nltk_data')
-os.makedirs(nltk_data_path, exist_ok=True)
-os.environ['NLTK_DATA'] = nltk_data_path
-nltk.data.path.append(nltk_data_path)
 
-# Download necessary NLTK data
-try:
-    nltk.download('punkt_tab', download_dir=nltk_data_path)
-    nltk.download('averaged_perceptron_tagger', download_dir=nltk_data_path)
-    logger.info("NLTK data downloaded successfully.")
-except Exception as e:
-    logger.error(f"Failed to download NLTK data: {str(e)}")
 
 
 # --- Model ---
