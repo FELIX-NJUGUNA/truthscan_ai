@@ -269,9 +269,9 @@ def login():
 @app.route('/')
 def index():
     try:
-        return render_template('index.html')
+        return render_template('login.html')
     except Exception as e:
-        logger.error(f"Failed to render index.html: {str(e)}")
+        logger.error(f"Failed to render login.html: {str(e)}")
         return jsonify({'error': 'Template rendering failed'}), 500
 
 @app.route('/predict', methods=['POST'])
