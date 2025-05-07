@@ -1,4 +1,4 @@
-from flask import Flask, redirect, request, jsonify, render_template, url_for
+from flask import Flask, request, jsonify, render_template
 from flask_bcrypt import Bcrypt
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
@@ -261,12 +261,6 @@ def index():
     except Exception as e:
         logger.error(f"Failed to render index.html: {str(e)}")
         return jsonify({'error': 'Template rendering failed'}), 500
-
-@app.route('/logout')
-def logout():
-    # Implement logout logic if needed (e.g., session.pop('user'))
-    return redirect(url_for('login'))  # Redirect to login page or homepage
-
 
 @app.route('/predict', methods=['POST'])
 @jwt_required
