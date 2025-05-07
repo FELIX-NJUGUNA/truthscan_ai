@@ -95,7 +95,7 @@ nltk.data.path.append(nltk_data_path)
 
 # Download necessary NLTK data
 try:
-    nltk.download('punkt', download_dir=nltk_data_path)
+    nltk.download('punkt_tab', download_dir=nltk_data_path)
     nltk.download('averaged_perceptron_tagger', download_dir=nltk_data_path)
     logger.info("NLTK data downloaded successfully.")
 except Exception as e:
