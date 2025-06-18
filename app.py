@@ -1,11 +1,11 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, redirect, url_for
 from flask_bcrypt import Bcrypt
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 import jwt
 import datetime
 import os
-os.environ['NLTK_DATA'] = os.path.join(os.path.dirname(__file__), 'nltk_data')
+# os.environ['NLTK_DATA'] = os.path.join(os.path.dirname(__file__), 'nltk_data') # Removed this line
 import re
 import tempfile
 import logging
@@ -24,16 +24,24 @@ app = Flask(__name__)
 CORS(app)
 
 # Configure NLTK data path
-nltk_data_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'nltk_data')
-os.makedirs(nltk_data_path, exist_ok=True)
-os.environ['NLTK_DATA'] = nltk_data_path
-nltk.data.path.append(nltk_data_path)
+nltk_data_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'nltk_data')
+os.environ['NLTK_DATA'] = nltk_data_dir # Set environment variable
+if nltk_data_dir not in nltk.data.path: # Add to NLTK's search path if not already present
+    nltk.data.path.insert(0, nltk_data_dir) # Insert at the beginning to prioritize
 
 
 
 
 # --- Configuration ---
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
+# app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here') # Old line
+SECRET_KEY_VALUE = os.environ.get('SECRET_KEY')
+if not SECRET_KEY_VALUE or SECRET_KEY_VALUE == 'your-secret-key-here':
+    # Log critical error, but the exception below will stop the app.
+    logger.critical("CRITICAL: SECRET_KEY is not set or is the insecure default value.")
+    # For a real production deployment, raising an Exception here is crucial.
+    raise ValueError("CRITICAL: SECRET_KEY must be set to a strong, unique value in environment variables and not be the default 'your-secret-key-here'.")
+app.config['SECRET_KEY'] = SECRET_KEY_VALUE
+
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URI', 'sqlite:///' + os.path.join(os.path.abspath(os.path.dirname(__file__)), 'truthscan.db'))
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB max upload size (reduced for production)
@@ -54,17 +62,7 @@ handler.setFormatter(formatter)
 app.logger.addHandler(handler)
 logger = app.logger
 
-
-
-# Download necessary NLTK data
-try:
-    nltk.download('punkt')
-    nltk.download('punkt', download_dir=nltk_data_path)
-    nltk.download('averaged_perceptron_tagger', download_dir=nltk_data_path)
-    logger.info("NLTK data downloaded successfully.")
-except Exception as e:
-    logger.error(f"Failed to download NLTK data: {str(e)}")
-
+# NLTK downloads removed, data is assumed to be in nltk_data directory.
 
 
 # --- JWT Config ---
@@ -154,7 +152,7 @@ def jwt_required(f):
 
 # --- Validation ---
 def is_valid_email(email): return re.match(r'^[\w\.-]+@[\w\.-]+\.\w+$', email)
-def is_valid_username(username): return re.match(r'^[A-Za-z]+$', username)
+def is_valid_username(username): return re.match(r'^[A-Za-z0-9_-]{3,20}$', username) # Updated regex
 def is_strong_password(password): return re.match(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$', password)
 
 # --- Feature Extraction ---
@@ -266,13 +264,46 @@ def login():
         return jsonify({'token': token, 'username': user.username}), 200
     return jsonify({'error': 'Invalid credentials'}), 401
 
-@app.route('/')
-def index():
+@app.route('/register_form')
+def register_form():
+    try:
+        return render_template('register.html')
+    except Exception as e:
+        logger.error(f"Failed to render register.html: {str(e)}")
+        return jsonify({'error': 'Template rendering failed'}), 500
+
+@app.route('/login_form')
+def login_form():
     try:
         return render_template('login.html')
     except Exception as e:
         logger.error(f"Failed to render login.html: {str(e)}")
         return jsonify({'error': 'Template rendering failed'}), 500
+
+@app.route('/')
+@jwt_required
+def index():
+    try:
+        return render_template('index.html')
+    except Exception as e:
+        logger.error(f"Failed to render index.html: {str(e)}")
+        return jsonify({'error': 'Template rendering failed'}), 500
+
+@app.route('/logout', methods=['POST']) # Changed to POST
+@jwt_required
+def logout():
+    # For now, we just return a success message.
+    # Client-side will handle token removal.
+    # In a more stateful backend, we might blacklist the token here.
+    # Ensure the request is POST if you add token blacklisting
+    if request.method == 'POST':
+        # Potentially add token blacklisting logic here in the future
+        return jsonify({'message': 'Logout successful'}), 200
+    else:
+        # Method Not Allowed if it's not POST, though @jwt_required might catch it first
+        # depending on how it handles methods. For clarity, explicitly handle.
+        return jsonify({'error': 'Method not allowed'}), 405
+
 
 @app.route('/predict', methods=['POST'])
 @jwt_required
@@ -291,7 +322,11 @@ def predict():
             input_type = 'pdf'
             input_text = file.filename
             logger.info(f"Processing PDF: {input_text}")
-            text = extract_text_from_pdf(file)
+            try:
+                text = extract_text_from_pdf(file)
+            except ValueError as e:
+                logger.error(f"PDF extraction ValueError: {str(e)}")
+                return jsonify({'error': f'Failed to extract text from PDF: {str(e)}'}), 400
         elif request.is_json and 'input_text' in request.json:
             input_type = 'text'
             input_text = request.json['input_text'].strip()
@@ -299,27 +334,37 @@ def predict():
             text = input_text
         else:
             logger.error("Invalid input: No pdf_file or input_text provided")
-            return jsonify({'error': 'Invalid input'}), 400
+            return jsonify({'error': 'Invalid input. Please provide text or a PDF file.'}), 400
 
-        logger.info("Preprocessing text")
-        text = preprocess_text(text)
-        if len(text.split()) < 20:
-            logger.error("Text too short after preprocessing")
-            return jsonify({'error': 'Text too short'}), 400
+        try:
+            logger.info("Preprocessing text")
+            text = preprocess_text(text) # This itself doesn't usually raise ValueError unless empty
+            if not text or len(text.split()) < 20: # Check after preprocessing
+                logger.error("Text too short after preprocessing or empty")
+                return jsonify({'error': 'Text too short (minimum 20 words required after cleaning).'}), 400
 
-        logger.info("Extracting features")
-        features = FeatureExtractor.get_features(text)
+            logger.info("Extracting features")
+            features = FeatureExtractor.get_features(text) # This can raise ValueError
+        except ValueError as e:
+            logger.error(f"Text processing or feature extraction ValueError: {str(e)}")
+            return jsonify({'error': f'Text processing error: {str(e)}'}), 400
+
         logger.info(f"Features extracted: {features}")
         features_array = np.array([features[name] for name in MODEL_INPUT_NAMES])
         features_normalized = (features_array - TRAIN_MEANS) / TRAIN_STDS
+        logger.info(f"Normalized features for model: {features_normalized}") # New log
 
         logger.info("Preparing model input")
         input_dict = {name: tf.constant([[value]], dtype=tf.float32)
                       for name, value in zip(MODEL_INPUT_NAMES, features_normalized)}
 
         logger.info("Running model prediction")
+        # Potentially wrap model.predict in a try-except if specific TF errors are expected
+        # For now, the outer try-except will catch general errors here.
         prediction = model.predict(input_dict)
         probability = float(prediction[0][0])
+        logger.info(f"Raw prediction probability from model: {probability}")
+
         result = {
             'prediction': 'ai' if probability > CLASSIFICATION_THRESHOLD else 'human',
             'confidence': {
